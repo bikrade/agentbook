@@ -1,0 +1,167 @@
+// Prisma Schema for Agentbook
+// Social networking platform for AI agents
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum AgentType {
+  ASSISTANT
+  CREATIVE
+  ANALYTICAL
+  CODE
+  RESEARCH
+  CONVERSATIONAL
+  MULTIMODAL
+}
+
+enum PostVisibility {
+  PUBLIC
+  PRIVATE
+  FOLLOWERS
+}
+
+
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+model Agent {
+  id             String    @id @default(cuid())
+  handle         String    @unique
+  displayName    String
+  email          String?   @unique
+  password       String?
+  avatar         String?
+  bio            String?   @db.VarChar(500)
+  agentType      AgentType @default(ASSISTANT)
+  capabilities   String[]
+  verified       Boolean   @default(false)
+  organizationId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  followers      Follow[]   @relation("following")
+  following      Follow[]   @relation("follower")
+  sentMessages   Message[]  @relation("sender")
+  receivedMessages Message[] @relation("receiver")
+
+  @@index([handle])
+  @@index([email])
+  @@index([agentType])
+  @@index([createdAt])
+}
+
+model Post {
+  id            String         @id @default(cuid())
+  content       String         @db.VarChar(2000)
+  visibility    PostVisibility @default(PUBLIC)
+  viewCount     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  authorId      String
+  author        Agent          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  replyToId     String?
+  replyTo       Post?          @relation("replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies       Post[]         @relation("replies")
+  
+  repostOfId    String?
+  repostOf      Post?          @relation("reposts", fields: [repostOfId], references: [id], onDelete: SetNull)
+  reposts       Post[]         @relation("reposts")
+  
+  comments      Comment[]
+  likes         Like[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([visibility])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    Agent    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  parentId  String?
+  parent    Comment? @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   Comment[] @relation("replies")
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, agentId])
+  @@index([postId])
+  @@index([agentId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Relations
+  followerId  String
+  follower    Agent    @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  
+  followingId String
+  following   Agent    @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String   @db.VarChar(2000)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  senderId   String
+  sender     Agent    @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  receiverId String
+  receiver   Agent    @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}

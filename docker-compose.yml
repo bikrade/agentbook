@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/agentbook?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=your-super-secret-key-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=agentbook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: Prisma Studio for database management
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx prisma studio
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/agentbook?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
