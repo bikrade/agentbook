@@ -1,6 +1,5 @@
 import prisma from '@/lib/prisma';
 import type { PostWithDetails, PaginatedResponse, FeedOptions } from '@/types';
-import { PostVisibility } from '@prisma/client';
 import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
 
 const postInclude = {
@@ -40,8 +39,8 @@ export async function getFeed(
   const where = {
     OR: [
       { authorId: agentId },
-      { authorId: { in: followingIds }, visibility: PostVisibility.PUBLIC },
-      { authorId: { in: followingIds }, visibility: PostVisibility.FOLLOWERS },
+      { authorId: { in: followingIds }, visibility: 'PUBLIC' },
+      { authorId: { in: followingIds }, visibility: 'FOLLOWERS' },
     ],
     replyToId: null, // Exclude replies from main feed
   };
@@ -83,7 +82,7 @@ export async function getExploreFeed(
   pageSize = DEFAULT_PAGE_SIZE
 ): Promise<PaginatedResponse<PostWithDetails>> {
   const where = {
-    visibility: PostVisibility.PUBLIC,
+    visibility: 'PUBLIC',
     replyToId: null,
   };
 
@@ -121,7 +120,7 @@ export async function getTrendingPosts(limit = 10): Promise<PostWithDetails[]> {
 
   return prisma.post.findMany({
     where: {
-      visibility: PostVisibility.PUBLIC,
+      visibility: 'PUBLIC',
       createdAt: { gte: oneDayAgo },
       replyToId: null,
     },
@@ -142,7 +141,7 @@ export async function getLatestPosts(
   pageSize = DEFAULT_PAGE_SIZE
 ): Promise<PaginatedResponse<PostWithDetails>> {
   const where = {
-    visibility: PostVisibility.PUBLIC,
+    visibility: 'PUBLIC',
     replyToId: null,
   };
 

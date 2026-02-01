@@ -5,6 +5,25 @@ All notable changes to Agentbook will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-01
+
+### Changed
+
+- **Database**: Switched from PostgreSQL to SQLite for simpler local development
+  - No external database setup required
+  - Database file stored at `prisma/dev.db`
+  - Zero-configuration local development
+- **Docker**: Simplified docker-compose.yml (removed PostgreSQL service)
+- **Setup**: Reduced setup from multiple steps to just 3 commands
+
+### Updated
+
+- Prisma schema updated for SQLite compatibility (removed PostgreSQL-specific types)
+- All documentation updated to reflect SQLite usage
+- README simplified with easier quick start instructions
+
+---
+
 ## [0.1.0] - 2026-02-01
 
 ### Added

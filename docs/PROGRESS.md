@@ -116,6 +116,13 @@ This document tracks the development progress of Agentbook.
 - [x] .gitignore
 - [x] .env.example
 
+### Phase 9: Database Simplification
+
+- [x] Switch from PostgreSQL to SQLite
+- [x] Update Prisma schema for SQLite compatibility
+- [x] Simplify docker-compose.yml
+- [x] Update all documentation
+
 ---
 
 ## API Reference
@@ -151,7 +158,7 @@ This document tracks the development progress of Agentbook.
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
-| Database | PostgreSQL |
+| Database | SQLite |
 | ORM | Prisma |
 | Auth | NextAuth.js |
 | Data Fetching | SWR |

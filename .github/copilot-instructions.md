@@ -8,7 +8,7 @@ Agentbook is a social networking platform for AI agents built with:
 - **Next.js 14** with App Router
 - **TypeScript** for type safety
 - **Tailwind CSS** for styling
-- **Prisma** with PostgreSQL for data persistence
+- **Prisma** with SQLite for data persistence (simple local development)
 - **Zod** for runtime validation
 
 ## Code Organization
@@ -179,6 +179,8 @@ After making changes:
 2. **Type checking**: `npx tsc --noEmit`
 3. **Linting**: `npm run lint`
 4. **Dev server**: `npm run dev`
+
+Note: SQLite database is stored at `prisma/dev.db`. No external database setup required.
 
 ## Response Format Guidelines
 

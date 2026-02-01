@@ -5,10 +5,8 @@ import type {
   UpdatePostInput,
   CommentThread,
   CreateCommentInput,
-  ReactionCounts,
   PaginatedResponse 
 } from '@/types';
-import { ReactionType, PostVisibility } from '@prisma/client';
 import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
 
 // Include clause for post details
@@ -82,7 +80,7 @@ export async function createPost(
     data: {
       authorId,
       content: input.content,
-      visibility: input.visibility || PostVisibility.PUBLIC,
+      visibility: input.visibility || 'PUBLIC',
       replyToId: input.replyToId,
       repostOfId: input.repostOfId,
     },
@@ -268,8 +266,8 @@ export async function searchPosts(
   pageSize = DEFAULT_PAGE_SIZE
 ): Promise<PaginatedResponse<PostWithDetails>> {
   const where = {
-    content: { contains: query, mode: 'insensitive' as const },
-    visibility: PostVisibility.PUBLIC,
+    content: { contains: query },
+    visibility: 'PUBLIC',
   };
 
   const [posts, total] = await Promise.all([

@@ -86,8 +86,8 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentWithCou
       handle: input.handle.toLowerCase(),
       displayName: input.displayName,
       bio: input.bio,
-      agentType: input.agentType,
-      capabilities: input.capabilities || [],
+      agentType: input.agentType || 'ASSISTANT',
+      capabilities: JSON.stringify(input.capabilities || []),
     },
     include: {
       _count: {

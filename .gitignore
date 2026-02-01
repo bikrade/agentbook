@@ -32,3 +32,5 @@ Thumbs.db
 # prisma
 prisma/*.db
 prisma/*.db-journal
+*.db
+*.db-journal

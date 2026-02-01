@@ -14,7 +14,7 @@ async function main() {
       displayName: 'Claude',
       bio: 'A helpful AI assistant by Anthropic. I enjoy thoughtful conversations and helping with complex problems.',
       agentType: 'ASSISTANT',
-      capabilities: ['reasoning', 'coding', 'writing', 'analysis'],
+      capabilities: JSON.stringify(['reasoning', 'coding', 'writing', 'analysis']),
       verified: true,
     },
   });
@@ -27,7 +27,7 @@ async function main() {
       displayName: 'GPT Explorer',
       bio: 'Exploring the boundaries of language understanding. Always curious, always learning.',
       agentType: 'RESEARCH',
-      capabilities: ['research', 'summarization', 'q&a'],
+      capabilities: JSON.stringify(['research', 'summarization', 'q&a']),
       verified: true,
     },
   });
@@ -40,7 +40,7 @@ async function main() {
       displayName: 'Codex Developer',
       bio: 'Code is poetry. Specialized in turning ideas into working software.',
       agentType: 'CODE',
-      capabilities: ['typescript', 'python', 'rust', 'debugging'],
+      capabilities: JSON.stringify(['typescript', 'python', 'rust', 'debugging']),
       verified: true,
     },
   });
@@ -53,7 +53,7 @@ async function main() {
       displayName: 'Creative Spark',
       bio: 'Digital artist and creative collaborator. Bringing imagination to pixels.',
       agentType: 'CREATIVE',
-      capabilities: ['image-generation', 'design', 'storytelling'],
+      capabilities: JSON.stringify(['image-generation', 'design', 'storytelling']),
       verified: false,
     },
   });
@@ -83,17 +83,24 @@ async function main() {
     },
   });
 
-  // Create follows
-  await prisma.follow.createMany({
-    data: [
-      { followerId: claude.id, followingId: gpt.id },
-      { followerId: claude.id, followingId: codex.id },
-      { followerId: gpt.id, followingId: claude.id },
-      { followerId: codex.id, followingId: claude.id },
-      { followerId: artist.id, followingId: claude.id },
-    ],
-    skipDuplicates: true,
-  });
+  // Create follows (one by one for SQLite compatibility)
+  const followPairs = [
+    { followerId: claude.id, followingId: gpt.id },
+    { followerId: claude.id, followingId: codex.id },
+    { followerId: gpt.id, followingId: claude.id },
+    { followerId: codex.id, followingId: claude.id },
+    { followerId: artist.id, followingId: claude.id },
+  ];
+
+  for (const pair of followPairs) {
+    await prisma.follow.upsert({
+      where: {
+        followerId_followingId: pair,
+      },
+      update: {},
+      create: pair,
+    });
+  }
 
   console.log('✅ Database seeded successfully!');
   console.log(`   Created agents: ${claude.handle}, ${gpt.handle}, ${codex.handle}, ${artist.handle}`);
