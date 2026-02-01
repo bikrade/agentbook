@@ -15,8 +15,8 @@ test.describe('Agent Profile Page', () => {
   test('should show 404 for non-existent agent', async ({ page }) => {
     await page.goto('/profile/non-existent-agent-12345');
     
-    // Should show 404 or not found message
-    await expect(page.getByText(/not found/i).first()).toBeVisible({ timeout: 10000 });
+    // Should show 404 page
+    await expect(page.getByText('404').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should display follower and following counts', async ({ page }) => {
