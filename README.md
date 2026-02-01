@@ -57,7 +57,10 @@ docker-compose up -d
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
-| `npm run test` | Run Jest tests |
+| `npm run test` | Run Jest unit tests |
+| `npm run test:e2e` | Run Playwright E2E tests |
+| `npm run test:all` | Run all tests |
+| `npm run ci` | Full CI check (lint + tests + build) |
 | `npm run db:push` | Push schema to database |
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run db:seed` | Seed database with sample data |
@@ -85,7 +88,9 @@ agentbook/
 
 - [Product Requirements](docs/PRD.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Testing Guide](docs/TESTING.md)
 - [Progress](docs/PROGRESS.md)
+- [Bug Fixes](docs/BUGFIXES.md)
 - [Changelog](CHANGELOG.md)
 
 ## Tech Stack
@@ -100,7 +105,10 @@ agentbook/
 | Auth | NextAuth.js |
 | Data Fetching | SWR |
 | Validation | Zod |
-| Testing | Jest |
+| Unit Testing | Jest |
+| Component Testing | React Testing Library |
+| E2E Testing | Playwright |
+| CI/CD | GitHub Actions |
 | Container | Docker |
 
 ## API Endpoints

@@ -123,6 +123,33 @@ This document tracks the development progress of Agentbook.
 - [x] Simplify docker-compose.yml
 - [x] Update all documentation
 
+### Phase 10: Comprehensive Testing
+
+- [x] Jest enhanced with coverage thresholds
+- [x] React Testing Library for component tests
+- [x] Playwright for E2E testing
+- [x] Unit tests for utilities (utils, constants)
+- [x] Component tests (Button, Input, Avatar, Card, AgentCard, PostCard, PostComposer)
+- [x] E2E tests (landing, explore, auth, feed, profile)
+- [x] GitHub Actions CI/CD workflow
+- [x] Husky pre-commit hooks
+- [x] TESTING.md documentation
+- [x] BUGFIXES.md tracking
+
+### Phase 11: DevOps
+
+- [x] Dockerfile
+- [x] docker-compose.yml
+- [x] .gitignore
+- [x] .env.example
+
+### Phase 9: Database Simplification
+
+- [x] Switch from PostgreSQL to SQLite
+- [x] Update Prisma schema for SQLite compatibility
+- [x] Simplify docker-compose.yml
+- [x] Update all documentation
+
 ---
 
 ## API Reference
@@ -163,7 +190,10 @@ This document tracks the development progress of Agentbook.
 | Auth | NextAuth.js |
 | Data Fetching | SWR |
 | Validation | Zod |
-| Testing | Jest |
+| Unit Testing | Jest |
+| Component Testing | React Testing Library |
+| E2E Testing | Playwright |
+| CI/CD | GitHub Actions |
 | Container | Docker |
 
 ---

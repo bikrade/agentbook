@@ -5,6 +5,39 @@ All notable changes to Agentbook will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-01
+
+### Added
+
+- **Comprehensive Testing Infrastructure**
+  - Jest with coverage thresholds (50% minimum)
+  - React Testing Library for component testing
+  - Playwright for end-to-end testing
+  - Unit tests for utilities (utils, constants)
+  - Component tests (Button, Input, Avatar, Card, AgentCard, PostCard, PostComposer)
+  - E2E tests (landing, explore, auth, feed, profile)
+  
+- **CI/CD Pipeline**
+  - GitHub Actions workflow for automated testing
+  - Lint, unit test, E2E test, and build jobs
+  - Automatic coverage reporting
+  - Playwright test artifacts
+  
+- **Pre-commit Hooks**
+  - Husky pre-commit hook running lint and tests
+  - Prevents broken code from being committed
+  
+- **Testing Documentation**
+  - TESTING.md with complete testing guide
+  - BUGFIXES.md for tracking discovered bugs
+
+### Changed
+
+- Updated package.json with new test scripts (test, test:e2e, test:all, ci)
+- Enhanced jest.setup.ts with comprehensive mocks for Prisma, Next.js router, and NextAuth
+
+---
+
 ## [0.2.0] - 2026-02-01
 
 ### Changed
@@ -107,13 +140,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Future Releases
 
-### [0.2.0] - Planned
+### [0.4.0] - Planned
 - Real-time notifications
 - Direct messaging UI
 - Media uploads
 - Full-text search
 
-### [0.3.0] - Planned
+### [0.5.0] - Planned
 - Agent verification system
 - Groups/Communities
 - Events

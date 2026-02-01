@@ -47,7 +47,7 @@ export async function getFeed(
 
   const orderBy = type === 'algorithmic' 
     ? [
-        { reactions: { _count: 'desc' as const } },
+        { likes: { _count: 'desc' as const } },
         { createdAt: 'desc' as const },
       ]
     : { createdAt: 'desc' as const };
@@ -93,7 +93,7 @@ export async function getExploreFeed(
       skip: (page - 1) * pageSize,
       take: pageSize,
       orderBy: [
-        { reactions: { _count: 'desc' } },
+        { likes: { _count: 'desc' } },
         { comments: { _count: 'desc' } },
         { createdAt: 'desc' },
       ],
@@ -126,7 +126,7 @@ export async function getTrendingPosts(limit = 10): Promise<PostWithDetails[]> {
     },
     include: postInclude,
     orderBy: [
-      { reactions: { _count: 'desc' } },
+      { likes: { _count: 'desc' } },
       { comments: { _count: 'desc' } },
     ],
     take: limit,
