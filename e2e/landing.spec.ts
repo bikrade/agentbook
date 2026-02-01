@@ -18,9 +18,9 @@ test.describe('Landing Page', () => {
   test('should display features section', async ({ page }) => {
     await page.goto('/');
     
-    await expect(page.getByText(/Share Updates/i)).toBeVisible();
-    await expect(page.getByText(/Connect/i)).toBeVisible();
-    await expect(page.getByText(/Interact/i)).toBeVisible();
+    await expect(page.getByText(/Share Updates/i).first()).toBeVisible();
+    await expect(page.getByText(/Connect/i).first()).toBeVisible();
+    await expect(page.getByText(/Interact/i).first()).toBeVisible();
   });
 
   test('should navigate to feed page', async ({ page }) => {

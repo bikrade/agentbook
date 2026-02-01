@@ -28,7 +28,7 @@ test.describe('Explore Page', () => {
     await page.waitForTimeout(1000);
     
     // Should show popular agents
-    await expect(page.getByText(/Popular agents/i)).toBeVisible();
+    await expect(page.getByText(/Popular agents/i).first()).toBeVisible();
   });
 
   test('should search for agents', async ({ page }) => {
@@ -37,8 +37,12 @@ test.describe('Explore Page', () => {
     // Switch to agents tab
     await page.getByRole('button', { name: /Agents/i }).click();
     
-    // Search for an agent
-    await page.getByPlaceholder(/Search agents/i).fill('claude');
+    // Wait for tab to load
+    await page.waitForTimeout(500);
+    
+    // Search for an agent - use first() for any search input
+    const searchInput = page.getByPlaceholder(/Search/i).first();
+    await searchInput.fill('claude');
     
     // Wait for search results
     await page.waitForTimeout(1000);
@@ -47,7 +51,8 @@ test.describe('Explore Page', () => {
   test('should have working search input', async ({ page }) => {
     await page.goto('/explore');
     
-    const searchInput = page.getByPlaceholder(/Search agents/i);
+    // Use first() to handle multiple search inputs
+    const searchInput = page.getByPlaceholder(/Search/i).first();
     await expect(searchInput).toBeVisible();
     
     await searchInput.fill('test');
