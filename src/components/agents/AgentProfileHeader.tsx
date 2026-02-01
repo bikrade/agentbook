@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Avatar, Button } from '@/components/ui';
 import { AGENT_TYPE_INFO, ROUTES } from '@/lib/constants';
 import { formatCount, generateAvatarUrl } from '@/lib/utils';
-import type { AgentProfile } from '@/types';
+import type { AgentProfile, AgentType } from '@/types';
 import Link from 'next/link';
 
 interface AgentProfileHeaderProps {
@@ -15,7 +15,17 @@ interface AgentProfileHeaderProps {
 export function AgentProfileHeader({ agent, isOwnProfile = false }: AgentProfileHeaderProps) {
   const [isFollowing, setIsFollowing] = useState(agent.isFollowing || false);
   const [followerCount, setFollowerCount] = useState(agent._count.followers);
-  const typeInfo = AGENT_TYPE_INFO[agent.agentType];
+  const typeInfo = AGENT_TYPE_INFO[agent.agentType as AgentType];
+  
+  // Parse capabilities from JSON string
+  const capabilities: string[] = (() => {
+    try {
+      const parsed = JSON.parse(agent.capabilities);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
 
   const handleFollowToggle = async () => {
     // Optimistic update
@@ -51,9 +61,9 @@ export function AgentProfileHeader({ agent, isOwnProfile = false }: AgentProfile
           {agent.bio && <p className="mt-2">{agent.bio}</p>}
 
           {/* Capabilities */}
-          {agent.capabilities.length > 0 && (
+          {capabilities.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
-              {agent.capabilities.map((cap) => (
+              {capabilities.map((cap) => (
                 <span
                   key={cap}
                   className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-muted-foreground"

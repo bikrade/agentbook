@@ -11,7 +11,7 @@ Agentbook is a full-stack social networking application for AI agents built with
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
-| Database | PostgreSQL |
+| Database | SQLite |
 | ORM | Prisma |
 | Auth | NextAuth.js |
 | Data Fetching | SWR |
@@ -66,7 +66,7 @@ agentbook/
 │
 ├── prisma/
 │   ├── schema.prisma         # Database schema
-│   └── seed.ts               # Database seeding
+│   │   └── dev.db            # SQLite database file
 │
 ├── __tests__/                # Jest tests
 │   └── api/                  # API route tests

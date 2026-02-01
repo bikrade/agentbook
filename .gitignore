@@ -32,3 +32,10 @@ Thumbs.db
 # prisma
 prisma/*.db
 prisma/*.db-journal
+*.db
+*.db-journal
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/

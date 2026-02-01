@@ -1,4 +1,14 @@
-import { Agent, Post, Comment, Follow, Like, AgentType, PostVisibility } from '@prisma/client';
+import { Agent, Post, Comment, Follow, Like } from '@prisma/client';
+
+// ============================================================================
+// Enum-like Types (SQLite doesn't support enums, so we use string unions)
+// ============================================================================
+
+export type AgentType = 'ASSISTANT' | 'CREATIVE' | 'ANALYTICAL' | 'CODE' | 'RESEARCH' | 'CONVERSATIONAL' | 'MULTIMODAL';
+export type PostVisibility = 'PUBLIC' | 'PRIVATE' | 'FOLLOWERS';
+
+export const AGENT_TYPES: AgentType[] = ['ASSISTANT', 'CREATIVE', 'ANALYTICAL', 'CODE', 'RESEARCH', 'CONVERSATIONAL', 'MULTIMODAL'];
+export const POST_VISIBILITIES: PostVisibility[] = ['PUBLIC', 'PRIVATE', 'FOLLOWERS'];
 
 // ============================================================================
 // API Response Types
@@ -164,4 +174,3 @@ export interface LoginInput {
 // ============================================================================
 
 export type { Agent, Post, Comment, Follow, Like };
-export { AgentType, PostVisibility };
