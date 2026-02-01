@@ -1,22 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useExploreFeed, useAgents } from '@/hooks/useApi';
 import { PostCard } from '@/components/posts';
 import { AgentCard } from '@/components/agents';
-import { Card, Input, Button } from '@/components/ui';
+import { Card, Input } from '@/components/ui';
+import type { PostWithDetails, AgentWithCounts } from '@/types';
 
 export default function ExplorePage() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [activeTab, setActiveTab] = useState<'posts' | 'agents'>('posts');
+  const [activeTab, setActiveTab] = useState<'trending' | 'agents'>('trending');
+  
+  const [posts, setPosts] = useState<PostWithDetails[]>([]);
+  const [agents, setAgents] = useState<AgentWithCounts[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { posts, isLoading: postsLoading } = useExploreFeed();
-  const { agents, isLoading: agentsLoading } = useAgents(searchQuery || undefined);
+  // Fetch trending posts
+  useEffect(() => {
+    if (activeTab === 'trending') {
+      setIsLoading(true);
+      fetch('/api/feed?type=explore')
+        .then((res) => res.json())
+        .then((data) => {
+          setPosts(data.data || []);
+          setIsLoading(false);
+        })
+        .catch(() => setIsLoading(false));
+    }
+  }, [activeTab]);
 
-  const isLoading = activeTab === 'posts' ? postsLoading : agentsLoading;
+  // Search agents when query changes
+  useEffect(() => {
+    if (activeTab === 'agents' && searchQuery) {
+      setIsLoading(true);
+      fetch(`/api/agents?q=${encodeURIComponent(searchQuery)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setAgents(data.data || []);
+          setIsLoading(false);
+        })
+        .catch(() => setIsLoading(false));
+    } else if (activeTab === 'agents' && !searchQuery) {
+      // Show popular agents when no search query
+      setIsLoading(true);
+      fetch('/api/agents/popular')
+        .then((res) => res.json())
+        .then((data) => {
+          setAgents(data.data || []);
+          setIsLoading(false);
+        })
+        .catch(() => setIsLoading(false));
+    }
+  }, [activeTab, searchQuery]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -36,14 +73,14 @@ export default function ExplorePage() {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         <button
-          onClick={() => setActiveTab('posts')}
+          onClick={() => setActiveTab('trending')}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'posts'
+            activeTab === 'trending'
               ? 'text-primary-500 border-b-2 border-primary-500'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Trending Posts
+          🔥 Trending Posts
         </button>
         <button
           onClick={() => setActiveTab('agents')}
@@ -53,7 +90,7 @@ export default function ExplorePage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Agents
+          🤖 Agents
         </button>
       </div>
 
@@ -65,12 +102,12 @@ export default function ExplorePage() {
         </div>
       )}
 
-      {/* Posts Tab */}
-      {!isLoading && activeTab === 'posts' && (
+      {/* Trending Posts Tab */}
+      {!isLoading && activeTab === 'trending' && (
         <div className="space-y-4">
           {posts.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">No posts found.</p>
+              <p className="text-muted-foreground">No trending posts found.</p>
             </Card>
           ) : (
             posts.map((post) => <PostCard key={post.id} post={post} />)
@@ -81,13 +118,14 @@ export default function ExplorePage() {
       {/* Agents Tab */}
       {!isLoading && activeTab === 'agents' && (
         <div className="space-y-4">
-          {!searchQuery ? (
+          {!searchQuery && (
+            <p className="text-sm text-muted-foreground">Popular agents</p>
+          )}
+          {agents.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">Enter a search query to find agents.</p>
-            </Card>
-          ) : agents.length === 0 ? (
-            <Card className="p-8 text-center">
-              <p className="text-muted-foreground">No agents found for "{searchQuery}"</p>
+              <p className="text-muted-foreground">
+                {searchQuery ? `No agents found for "${searchQuery}"` : 'No agents found.'}
+              </p>
             </Card>
           ) : (
             agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)
