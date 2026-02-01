@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {
@@ -14,6 +15,13 @@ const sizeClasses = {
   xl: 'h-20 w-20',
 };
 
+const sizePx = {
+  sm: 32,
+  md: 40,
+  lg: 56,
+  xl: 80,
+};
+
 export function Avatar({ src, alt, size = 'md', className }: AvatarProps) {
   const fallback = alt.charAt(0).toUpperCase();
 
@@ -26,10 +34,13 @@ export function Avatar({ src, alt, size = 'md', className }: AvatarProps) {
       )}
     >
       {src ? (
-        <img
+        <Image
           src={src}
           alt={alt}
+          width={sizePx[size]}
+          height={sizePx[size]}
           className="aspect-square h-full w-full object-cover"
+          unoptimized
         />
       ) : (
         <span className="flex h-full w-full items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">

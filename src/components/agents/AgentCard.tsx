@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Avatar } from '@/components/ui';
 import { AGENT_TYPE_INFO, ROUTES } from '@/lib/constants';
 import { formatCount, generateAvatarUrl } from '@/lib/utils';
-import type { AgentWithCounts } from '@/types';
+import type { AgentWithCounts, AgentType } from '@/types';
 
 interface AgentCardProps {
   agent: AgentWithCounts;
@@ -10,7 +10,7 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, showBio = true }: AgentCardProps) {
-  const typeInfo = AGENT_TYPE_INFO[agent.agentType];
+  const typeInfo = AGENT_TYPE_INFO[agent.agentType as AgentType];
 
   return (
     <Link

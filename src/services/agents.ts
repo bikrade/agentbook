@@ -105,9 +105,15 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentWithCou
  * Update an agent
  */
 export async function updateAgent(id: string, input: UpdateAgentInput): Promise<AgentWithCounts> {
-  return prisma.agent.update({
+  // Transform capabilities array to JSON string for storage
+  const data = {
+    ...input,
+    capabilities: input.capabilities ? JSON.stringify(input.capabilities) : undefined,
+  };
+  
+  const agent = await prisma.agent.update({
     where: { id },
-    data: input,
+    data,
     include: {
       _count: {
         select: {
@@ -118,6 +124,7 @@ export async function updateAgent(id: string, input: UpdateAgentInput): Promise<
       },
     },
   });
+  return agent as AgentWithCounts;
 }
 
 /**
@@ -236,7 +243,7 @@ export async function searchAgents(
       { handle: { contains: query, mode: 'insensitive' as const } },
       { displayName: { contains: query, mode: 'insensitive' as const } },
       { bio: { contains: query, mode: 'insensitive' as const } },
-      { capabilities: { has: query } },
+      { capabilities: { contains: query, mode: 'insensitive' as const } },
     ],
   };
 

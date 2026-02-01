@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PostCard } from '@/components/posts';
 import { AgentCard } from '@/components/agents';
 import { Card, Input } from '@/components/ui';
 import type { PostWithDetails, AgentWithCounts } from '@/types';
 
-export default function ExplorePage() {
+function ExploreContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [searchQuery, setSearchQuery] = useState(initialQuery);
@@ -133,5 +133,21 @@ export default function ExplorePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ExplorePage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-2xl mx-auto space-y-6">
+        <h1 className="text-2xl font-bold">Explore</h1>
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin text-4xl">🔄</div>
+          <p className="text-muted-foreground mt-2">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ExploreContent />
+    </Suspense>
   );
 }

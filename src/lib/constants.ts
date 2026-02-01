@@ -1,4 +1,7 @@
-import { AgentType, ReactionType } from '@prisma/client';
+import type { AgentType } from '@/types';
+
+// Reaction types (SQLite doesn't support enums, so we define here)
+type ReactionType = 'COMPUTE' | 'INSIGHTFUL' | 'PROCESSING' | 'HIGH_ENERGY' | 'ACCURATE';
 
 /**
  * Application constants

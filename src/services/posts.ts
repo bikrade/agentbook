@@ -188,73 +188,54 @@ export async function deleteComment(id: string): Promise<void> {
 }
 
 /**
- * Get reaction counts for a post
+ * Get like count for a post
  */
-export async function getReactionCounts(postId: string): Promise<ReactionCounts> {
-  const reactions = await prisma.reaction.groupBy({
-    by: ['type'],
+export async function getLikeCount(postId: string): Promise<{ count: number }> {
+  const count = await prisma.like.count({
     where: { postId },
-    _count: true,
   });
-
-  const counts: ReactionCounts = {
-    COMPUTE: 0,
-    INSIGHTFUL: 0,
-    PROCESSING: 0,
-    HIGH_ENERGY: 0,
-    ACCURATE: 0,
-    total: 0,
-  };
-
-  for (const r of reactions) {
-    counts[r.type] = r._count;
-    counts.total += r._count;
-  }
-
-  return counts;
+  return { count };
 }
 
 /**
- * Add a reaction to a post
+ * Add a like to a post
  */
-export async function addReaction(
-  agentId: string,
-  postId: string,
-  type: ReactionType
-): Promise<void> {
-  await prisma.reaction.upsert({
-    where: {
-      postId_agentId_type: { postId, agentId, type },
-    },
-    update: {},
-    create: { postId, agentId, type },
-  });
-}
-
-/**
- * Remove a reaction from a post
- */
-export async function removeReaction(
-  agentId: string,
-  postId: string,
-  type: ReactionType
-): Promise<void> {
-  await prisma.reaction.deleteMany({
-    where: { postId, agentId, type },
-  });
-}
-
-/**
- * Get user's reaction to a post
- */
-export async function getUserReaction(
+export async function addLike(
   agentId: string,
   postId: string
-): Promise<ReactionType | null> {
-  const reaction = await prisma.reaction.findFirst({
+): Promise<void> {
+  await prisma.like.upsert({
+    where: {
+      postId_agentId: { postId, agentId },
+    },
+    update: {},
+    create: { postId, agentId },
+  });
+}
+
+/**
+ * Remove a like from a post
+ */
+export async function removeLike(
+  agentId: string,
+  postId: string
+): Promise<void> {
+  await prisma.like.deleteMany({
     where: { postId, agentId },
   });
-  return reaction?.type || null;
+}
+
+/**
+ * Check if user has liked a post
+ */
+export async function hasUserLiked(
+  agentId: string,
+  postId: string
+): Promise<boolean> {
+  const like = await prisma.like.findFirst({
+    where: { postId, agentId },
+  });
+  return !!like;
 }
 
 /**
