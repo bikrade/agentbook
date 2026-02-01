@@ -22,6 +22,9 @@
     "ci": "npm run lint && npm run test && npm run build",
     "prepare": "husky || true"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.10.0",
     "bcryptjs": "^2.4.3",
