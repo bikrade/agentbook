@@ -66,6 +66,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Login to Azure via OIDC
+        id: azure-login
+        continue-on-error: true
         uses: azure/login@v2
         with:
           client-id: ${{ steps.azure-oidc.outputs.client_id }}
@@ -88,11 +90,27 @@ jobs:
             ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
             ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:latest
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure Web App (OIDC session)
+        if: ${{ steps.azure-login.outcome == 'success' }}
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           images: ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
+
+      - name: Deploy to Azure Web App (publish profile fallback)
+        if: ${{ steps.azure-login.outcome != 'success' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
+
+      - name: Fail if no deploy auth method succeeded
+        if: ${{ steps.azure-login.outcome != 'success' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' }}
+        run: |
+          echo "OIDC login failed and AZURE_WEBAPP_PUBLISH_PROFILE is not set."
+          echo "Fix AZURE_TENANT_ID/AZURE_CLIENT_ID federated credentials, or add AZURE_WEBAPP_PUBLISH_PROFILE secret as fallback."
+          exit 1
 
   smoke-test:
     name: Post-Deploy Smoke Test
