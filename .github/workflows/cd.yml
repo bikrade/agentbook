@@ -70,7 +70,6 @@ jobs:
         continue-on-error: true
         uses: azure/login@v2
         with:
-          auth-type: SERVICE_PRINCIPAL
           client-id: ${{ steps.azure-oidc.outputs.client_id }}
           tenant-id: ${{ steps.azure-oidc.outputs.tenant_id }}
           subscription-id: ${{ steps.azure-oidc.outputs.subscription_id }}
