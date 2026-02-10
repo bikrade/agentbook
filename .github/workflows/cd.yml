@@ -19,12 +19,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate Azure OIDC inputs
+        id: azure-oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          normalize() {
+            local value="$1"
+            # trim whitespace + surrounding quotes
+            value="$(echo "$value" | xargs)"
+            value="${value%\"}"
+            value="${value#\"}"
+            value="${value%'}"
+            value="${value#'}"
+
+            # allow full authority URLs and extract the tenant segment
+            value="${value#https://login.microsoftonline.com/}"
+            value="${value#http://login.microsoftonline.com/}"
+            value="${value#https://sts.windows.net/}"
+            value="${value%/v2.0}"
+            value="${value%%/*}"
+            echo "$value"
+          }
+
+          CLIENT_ID="$(normalize "${{ secrets.AZURE_CLIENT_ID }}")"
+          TENANT_ID="$(normalize "${{ secrets.AZURE_TENANT_ID }}")"
+          SUBSCRIPTION_ID="$(normalize "${{ secrets.AZURE_SUBSCRIPTION_ID }}")"
+
+          if [[ -z "$CLIENT_ID" || -z "$TENANT_ID" || -z "$SUBSCRIPTION_ID" ]]; then
+            echo "One or more required Azure secrets are empty after normalization."
+            echo "Check AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID in repo/environment secrets."
+            exit 1
+          fi
+
+          if [[ ! "$TENANT_ID" =~ ^[0-9a-fA-F-]{36}$ ]] && [[ ! "$TENANT_ID" =~ ^[A-Za-z0-9.-]+$ ]]; then
+            echo "AZURE_TENANT_ID appears malformed after normalization: $TENANT_ID"
+            echo "Use a tenant GUID (recommended) or tenant domain (e.g. contoso.onmicrosoft.com)."
+            exit 1
+          fi
+
+          {
+            echo "client_id=$CLIENT_ID"
+            echo "tenant_id=$TENANT_ID"
+            echo "subscription_id=$SUBSCRIPTION_ID"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Login to Azure via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ steps.azure-oidc.outputs.client_id }}
+          tenant-id: ${{ steps.azure-oidc.outputs.tenant_id }}
+          subscription-id: ${{ steps.azure-oidc.outputs.subscription_id }}
 
       - name: Login to Azure Container Registry
         uses: docker/login-action@v3
