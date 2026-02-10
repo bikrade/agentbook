@@ -1,0 +1,61 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & Deploy to Azure
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:latest
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
+
+  smoke-test:
+    name: Post-Deploy Smoke Test
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Wait for deployment to stabilize
+        run: sleep 30
+
+      - name: Health check - Homepage
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net)
+          echo "Homepage status: $STATUS"
+          if [ "$STATUS" != "200" ]; then exit 1; fi
+
+      - name: Health check - API
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/agents)
+          echo "API status: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then exit 1; fi
+
+      - name: Print deployment URL
+        run: echo "✅ Deployed to https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
