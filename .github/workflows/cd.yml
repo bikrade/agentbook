@@ -1,25 +1,79 @@
 name: CD
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
+  id-token: write
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Build & Deploy to Azure
+    name: Build, Push Image, Deploy to Azure Web App
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment: production
+    env:
+      DEPLOY_TARGET_TYPE: webapp-container
+      IMAGE_NAME: ${{ vars.IMAGE_NAME || 'agentbook' }}
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || secrets.AZURE_WEBAPP_NAME }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || secrets.AZURE_RESOURCE_GROUP }}
+      ACR_NAME: ${{ vars.ACR_NAME || secrets.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || secrets.ACR_LOGIN_SERVER }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'unknown' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Azure OIDC inputs
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build app
+        run: npm run build
+        env:
+          DATABASE_URL: "file:./dev.db"
+          NEXTAUTH_SECRET: "build-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+
+      - name: Preflight config validation (non-sensitive)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_vars=(AZURE_WEBAPP_NAME AZURE_RESOURCE_GROUP ACR_LOGIN_SERVER)
+          for name in "${required_vars[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required config: ${name}. Set it in repository Variables (preferred) or Secrets."
+              exit 1
+            fi
+          done
+
+          if [[ -z "${ACR_NAME:-}" ]]; then
+            ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+            echo "Derived ACR_NAME=${ACR_NAME} from ACR_LOGIN_SERVER"
+            echo "ACR_NAME=${ACR_NAME}" >> "$GITHUB_ENV"
+          fi
+
+          echo "Deploy target type: ${DEPLOY_TARGET_TYPE}"
+          echo "Azure resource group: ${AZURE_RESOURCE_GROUP}"
+          echo "Azure Web App name: ${AZURE_WEBAPP_NAME}"
+          echo "ACR login server: ${ACR_LOGIN_SERVER}"
+          echo "Azure location: ${AZURE_LOCATION}"
+
+      - name: Normalize Azure OIDC IDs
         id: azure-oidc
         shell: bash
         run: |
@@ -27,14 +81,11 @@ jobs:
 
           normalize() {
             local value="$1"
-            # trim whitespace + surrounding quotes
             value="$(echo "$value" | xargs)"
             value="${value%\"}"
             value="${value#\"}"
-            value="${value%'}"
-            value="${value#'}"
-
-            # allow full authority URLs and extract the tenant segment
+            value="${value%\'}"
+            value="${value#\'}"
             value="${value#https://login.microsoftonline.com/}"
             value="${value#http://login.microsoftonline.com/}"
             value="${value#https://sts.windows.net/}"
@@ -48,14 +99,7 @@ jobs:
           SUBSCRIPTION_ID="$(normalize "${{ secrets.AZURE_SUBSCRIPTION_ID }}")"
 
           if [[ -z "$CLIENT_ID" || -z "$TENANT_ID" || -z "$SUBSCRIPTION_ID" ]]; then
-            echo "One or more required Azure secrets are empty after normalization."
-            echo "Check AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID in repo/environment secrets."
-            exit 1
-          fi
-
-          if [[ ! "$TENANT_ID" =~ ^[0-9a-fA-F-]{36}$ ]] && [[ ! "$TENANT_ID" =~ ^[A-Za-z0-9.-]+$ ]]; then
-            echo "AZURE_TENANT_ID appears malformed after normalization: $TENANT_ID"
-            echo "Use a tenant GUID (recommended) or tenant domain (e.g. contoso.onmicrosoft.com)."
+            echo "::error::AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID must all be set."
             exit 1
           fi
 
@@ -65,21 +109,35 @@ jobs:
             echo "subscription_id=$SUBSCRIPTION_ID"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Login to Azure via OIDC
-        id: azure-login
-        continue-on-error: true
+      - name: Login to Azure (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ steps.azure-oidc.outputs.client_id }}
           tenant-id: ${{ steps.azure-oidc.outputs.tenant_id }}
           subscription-id: ${{ steps.azure-oidc.outputs.subscription_id }}
 
-      - name: Login to Azure Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Confirm Azure subscription
+        shell: bash
+        run: |
+          set -euo pipefail
+          az account show --output table
+
+      - name: Validate Azure resources exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+          az webapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --output none
+          az acr show --name "$ACR_NAME" --output none
+
+      - name: ACR login through Azure CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "$ACR_NAME"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -87,50 +145,40 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:latest
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Deploy to Azure Web App (OIDC session)
-        if: ${{ steps.azure-login.outcome == 'success' }}
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          images: ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
-
-      - name: Deploy to Azure Web App (publish profile fallback)
-        if: ${{ steps.azure-login.outcome != 'success' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: ${{ secrets.ACR_LOGIN_SERVER }}/agentbook:${{ github.sha }}
-
-      - name: Fail if no deploy auth method succeeded
-        if: ${{ steps.azure-login.outcome != 'success' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' }}
-        run: |
-          echo "OIDC login failed and AZURE_WEBAPP_PUBLISH_PROFILE is not set."
-          echo "Fix AZURE_TENANT_ID/AZURE_CLIENT_ID federated credentials, or add AZURE_WEBAPP_PUBLISH_PROFILE secret as fallback."
-          exit 1
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   smoke-test:
     name: Post-Deploy Smoke Test
     runs-on: ubuntu-latest
     needs: deploy
+    env:
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || secrets.AZURE_WEBAPP_NAME }}
     steps:
       - name: Wait for deployment to stabilize
         run: sleep 30
 
       - name: Health check - Homepage
+        shell: bash
         run: |
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net)
+          set -euo pipefail
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" "https://${AZURE_WEBAPP_NAME}.azurewebsites.net")
           echo "Homepage status: $STATUS"
           if [ "$STATUS" != "200" ]; then exit 1; fi
 
       - name: Health check - API
+        shell: bash
         run: |
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/agents)
+          set -euo pipefail
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" "https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/agents")
           echo "API status: $STATUS"
           if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then exit 1; fi
 
       - name: Print deployment URL
-        run: echo "✅ Deployed to https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        run: echo "Deployed to https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
