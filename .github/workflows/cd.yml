@@ -26,6 +26,11 @@ jobs:
       ACR_NAME: ${{ vars.ACR_NAME || secrets.ACR_NAME }}
       ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || secrets.ACR_LOGIN_SERVER }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'unknown' }}
+      AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT || secrets.AZURE_STORAGE_ACCOUNT }}
+      AZURE_STORAGE_RESOURCE_GROUP: ${{ vars.AZURE_STORAGE_RESOURCE_GROUP || secrets.AZURE_STORAGE_RESOURCE_GROUP }}
+      AZURE_FILE_SHARE: ${{ vars.AZURE_FILE_SHARE || 'agentbook-sqlite' }}
+      SQLITE_MOUNT_PATH: /home/data
+      SQLITE_DB_FILENAME: dev.db
       OIDC_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       OIDC_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       OIDC_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
@@ -56,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          required_vars=(AZURE_WEBAPP_NAME ACR_LOGIN_SERVER)
+          required_vars=(AZURE_WEBAPP_NAME ACR_LOGIN_SERVER AZURE_STORAGE_ACCOUNT)
           for name in "${required_vars[@]}"; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required config: ${name}. Set it in repository Variables (preferred) or Secrets."
@@ -75,6 +80,9 @@ jobs:
           echo "Azure Web App name: ${AZURE_WEBAPP_NAME}"
           echo "ACR login server: ${ACR_LOGIN_SERVER}"
           echo "Azure location: ${AZURE_LOCATION}"
+          echo "Storage account: ${AZURE_STORAGE_ACCOUNT}"
+          echo "Storage share: ${AZURE_FILE_SHARE}"
+          echo "SQLite mount path: ${SQLITE_MOUNT_PATH}"
 
       - name: Normalize Azure OIDC IDs
         id: azure-oidc
@@ -144,6 +152,10 @@ jobs:
             echo "AZURE_RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
           fi
 
+          if [[ -z "${AZURE_STORAGE_RESOURCE_GROUP:-}" ]]; then
+            echo "AZURE_STORAGE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}" >> "$GITHUB_ENV"
+          fi
+
       - name: Validate Azure resources exist
         shell: bash
         run: |
@@ -151,6 +163,56 @@ jobs:
           az group show --name "$AZURE_RESOURCE_GROUP" --output none
           az webapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$AZURE_WEBAPP_NAME" --output none
           az acr show --name "$ACR_NAME" --output none
+          az group show --name "$AZURE_STORAGE_RESOURCE_GROUP" --output none
+          az storage account show --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" --name "$AZURE_STORAGE_ACCOUNT" --output none
+
+      - name: Ensure persistent SQLite file share exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          az storage share-rm create \
+            --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" \
+            --storage-account "$AZURE_STORAGE_ACCOUNT" \
+            --name "$AZURE_FILE_SHARE" \
+            --quota 5 \
+            --output none
+
+      - name: Bootstrap SQLite data file on share (first deploy only)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          STORAGE_KEY="$(az storage account keys list \
+            --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" \
+            --account-name "$AZURE_STORAGE_ACCOUNT" \
+            --query "[0].value" -o tsv)"
+          echo "::add-mask::$STORAGE_KEY"
+
+          DB_EXISTS="$(az storage file exists \
+            --account-name "$AZURE_STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --share-name "$AZURE_FILE_SHARE" \
+            --path "$SQLITE_DB_FILENAME" \
+            --query "exists" -o tsv)"
+
+          if [[ "$DB_EXISTS" == "true" ]]; then
+            echo "Persistent SQLite file already exists in share. Keeping existing data."
+            exit 0
+          fi
+
+          echo "Creating initial SQLite file with schema + seed data."
+          rm -f prisma/bootstrap.db
+          DATABASE_URL="file:./prisma/bootstrap.db" npx prisma db push
+          DATABASE_URL="file:./prisma/bootstrap.db" npx prisma db seed
+
+          az storage file upload \
+            --account-name "$AZURE_STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --share-name "$AZURE_FILE_SHARE" \
+            --source "prisma/bootstrap.db" \
+            --path "$SQLITE_DB_FILENAME" \
+            --overwrite false \
+            --output none
 
       - name: ACR login through Azure CLI
         shell: bash
@@ -175,6 +237,46 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           images: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Configure Azure Files mount + SQLite DATABASE_URL
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          STORAGE_KEY="$(az storage account keys list \
+            --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" \
+            --account-name "$AZURE_STORAGE_ACCOUNT" \
+            --query "[0].value" -o tsv)"
+          echo "::add-mask::$STORAGE_KEY"
+
+          # Recreate mount idempotently to avoid stale mount definitions.
+          az webapp config storage-account delete \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --custom-id sqlite-data \
+            --output none || true
+
+          az webapp config storage-account add \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --custom-id sqlite-data \
+            --storage-type AzureFiles \
+            --account-name "$AZURE_STORAGE_ACCOUNT" \
+            --share-name "$AZURE_FILE_SHARE" \
+            --access-key "$STORAGE_KEY" \
+            --mount-path "$SQLITE_MOUNT_PATH" \
+            --output none
+
+          az webapp config appsettings set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --settings DATABASE_URL="file:${SQLITE_MOUNT_PATH}/${SQLITE_DB_FILENAME}" \
+            --output none
+
+          az webapp restart \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --output none
 
   smoke-test:
     name: Post-Deploy Smoke Test
