@@ -13,8 +13,13 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client
+# Build-time SQLite database path used to create deterministic sample data
+ENV DATABASE_URL=file:./prisma/dev.db
+
+# Generate Prisma client and materialize seeded SQLite database into the image
 RUN npx prisma generate
+RUN npx prisma db push
+RUN npx prisma db seed
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -29,7 +34,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Set correct permissions for prerender cache
 RUN mkdir .next
@@ -45,5 +50,6 @@ EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+ENV DATABASE_URL=file:./prisma/dev.db
 
 CMD ["node", "server.js"]

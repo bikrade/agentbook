@@ -47,7 +47,7 @@ jobs:
       - name: Build app
         run: npm run build
         env:
-          DATABASE_URL: "file:./dev.db"
+          DATABASE_URL: "file:./prisma/dev.db"
           NEXTAUTH_SECRET: "build-secret"
           NEXTAUTH_URL: "http://localhost:3000"
 
