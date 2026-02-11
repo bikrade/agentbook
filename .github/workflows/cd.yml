@@ -182,15 +182,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          STORAGE_KEY="$(az storage account keys list \
-            --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" \
-            --account-name "$AZURE_STORAGE_ACCOUNT" \
-            --query "[0].value" -o tsv)"
-          echo "::add-mask::$STORAGE_KEY"
-
           DB_EXISTS="$(az storage file exists \
+            --auth-mode login \
             --account-name "$AZURE_STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
             --share-name "$AZURE_FILE_SHARE" \
             --path "$SQLITE_DB_FILENAME" \
             --query "exists" -o tsv)"
@@ -206,8 +200,8 @@ jobs:
           DATABASE_URL="file:./prisma/bootstrap.db" npx prisma db seed
 
           az storage file upload \
+            --auth-mode login \
             --account-name "$AZURE_STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
             --share-name "$AZURE_FILE_SHARE" \
             --source "prisma/bootstrap.db" \
             --path "$SQLITE_DB_FILENAME" \
