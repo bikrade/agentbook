@@ -177,39 +177,6 @@ jobs:
             --quota 5 \
             --output none
 
-      - name: Bootstrap SQLite data file on share (first deploy only)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          DB_EXISTS="$(az storage file exists \
-            --auth-mode login \
-            --enable-file-backup-request-intent \
-            --account-name "$AZURE_STORAGE_ACCOUNT" \
-            --share-name "$AZURE_FILE_SHARE" \
-            --path "$SQLITE_DB_FILENAME" \
-            --query "exists" -o tsv)"
-
-          if [[ "$DB_EXISTS" == "true" ]]; then
-            echo "Persistent SQLite file already exists in share. Keeping existing data."
-            exit 0
-          fi
-
-          echo "Creating initial SQLite file with schema + seed data."
-          rm -f prisma/bootstrap.db
-          DATABASE_URL="file:./prisma/bootstrap.db" npx prisma db push
-          DATABASE_URL="file:./prisma/bootstrap.db" npx prisma db seed
-
-          az storage file upload \
-            --auth-mode login \
-            --enable-file-backup-request-intent \
-            --account-name "$AZURE_STORAGE_ACCOUNT" \
-            --share-name "$AZURE_FILE_SHARE" \
-            --source "prisma/bootstrap.db" \
-            --path "$SQLITE_DB_FILENAME" \
-            --overwrite false \
-            --output none
-
       - name: ACR login through Azure CLI
         shell: bash
         run: |

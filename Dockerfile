@@ -35,10 +35,12 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --chown=nextjs:nodejs docker/entrypoint.sh ./entrypoint.sh
 
 # Set correct permissions for prerender cache
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
+RUN chmod +x ./entrypoint.sh
 
 # Copy built assets
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -52,4 +54,4 @@ ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 ENV DATABASE_URL=file:./prisma/dev.db
 
-CMD ["node", "server.js"]
+CMD ["./entrypoint.sh"]
