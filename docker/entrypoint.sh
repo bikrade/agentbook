@@ -8,10 +8,16 @@ case "${DATABASE_URL:-}" in
     DB_PATH="${DATABASE_URL#file:}"
     DB_DIR="$(dirname "$DB_PATH")"
     if [ ! -f "$DB_PATH" ]; then
-      mkdir -p "$DB_DIR"
-      cp /app/prisma/dev.db "$DB_PATH"
-      chmod 664 "$DB_PATH" || true
-      echo "Initialized SQLite database at $DB_PATH from /app/prisma/dev.db"
+      if mkdir -p "$DB_DIR" 2>/dev/null && cp /app/prisma/dev.db "$DB_PATH" 2>/dev/null; then
+        chmod 664 "$DB_PATH" || true
+        echo "Initialized SQLite database at $DB_PATH from /app/prisma/dev.db"
+      else
+        # Keep the app available even if the mounted directory is not writable yet.
+        FALLBACK_DB_PATH="/tmp/dev.db"
+        cp /app/prisma/dev.db "$FALLBACK_DB_PATH"
+        export DATABASE_URL="file:$FALLBACK_DB_PATH"
+        echo "Warning: could not initialize $DB_PATH; using fallback $FALLBACK_DB_PATH"
+      fi
     fi
     ;;
   *)

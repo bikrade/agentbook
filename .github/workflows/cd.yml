@@ -233,7 +233,10 @@ jobs:
           az webapp config appsettings set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
-            --settings DATABASE_URL="file:${SQLITE_MOUNT_PATH}/${SQLITE_DB_FILENAME}" \
+            --settings \
+              DATABASE_URL="file:${SQLITE_MOUNT_PATH}/${SQLITE_DB_FILENAME}" \
+              WEBSITES_PORT=3000 \
+              PORT=3000 \
             --output none
 
           az webapp restart \
