@@ -26,6 +26,9 @@ jobs:
       ACR_NAME: ${{ vars.ACR_NAME || secrets.ACR_NAME }}
       ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || secrets.ACR_LOGIN_SERVER }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'unknown' }}
+      OIDC_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      OIDC_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      OIDC_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -94,12 +97,17 @@ jobs:
             echo "$value"
           }
 
-          CLIENT_ID="$(normalize "${{ secrets.AZURE_CLIENT_ID }}")"
-          TENANT_ID="$(normalize "${{ secrets.AZURE_TENANT_ID }}")"
-          SUBSCRIPTION_ID="$(normalize "${{ secrets.AZURE_SUBSCRIPTION_ID }}")"
+          CLIENT_ID="$(normalize "${OIDC_CLIENT_ID:-}")"
+          TENANT_ID="$(normalize "${OIDC_TENANT_ID:-}")"
+          SUBSCRIPTION_ID="$(normalize "${OIDC_SUBSCRIPTION_ID:-}")"
 
           if [[ -z "$CLIENT_ID" || -z "$TENANT_ID" || -z "$SUBSCRIPTION_ID" ]]; then
             echo "::error::AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID must all be set."
+            exit 1
+          fi
+
+          if [[ ! "$TENANT_ID" =~ ^[0-9a-fA-F-]{36}$ ]] && [[ ! "$TENANT_ID" =~ ^[A-Za-z0-9.-]+$ ]]; then
+            echo "::error::AZURE_TENANT_ID is malformed after normalization. Use a tenant GUID (recommended) or tenant domain."
             exit 1
           fi
 
