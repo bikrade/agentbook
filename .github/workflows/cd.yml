@@ -190,17 +190,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" "https://${AZURE_WEBAPP_NAME}.azurewebsites.net")
-          echo "Homepage status: $STATUS"
-          if [ "$STATUS" != "200" ]; then exit 1; fi
+          URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+          for attempt in {1..12}; do
+            STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
+            echo "Homepage attempt ${attempt}: ${STATUS:-no-response}"
+            if [ "$STATUS" = "200" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Homepage health check failed for $URL"
+          exit 1
 
       - name: Health check - API
         shell: bash
         run: |
           set -euo pipefail
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" "https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/agents")
-          echo "API status: $STATUS"
-          if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then exit 1; fi
+          URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/agents"
+          for attempt in {1..12}; do
+            STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
+            echo "API attempt ${attempt}: ${STATUS:-no-response}"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::API health check failed for $URL"
+          exit 1
 
       - name: Print deployment URL
         run: echo "Deployed to https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
