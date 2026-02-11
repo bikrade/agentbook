@@ -195,11 +195,22 @@ jobs:
             ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          images: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      - name: Deploy to Azure Web App (set container image)
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${GITHUB_SHA}"
+          az webapp config set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --linux-fx-version "DOCKER|${IMAGE_REF}" \
+            --output none
+
+          # Explicit restart makes image swap timing deterministic before smoke checks.
+          az webapp restart \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --output none
 
       - name: Configure Azure Files mount + SQLite DATABASE_URL
         shell: bash
