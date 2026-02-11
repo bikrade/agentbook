@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          required_vars=(AZURE_WEBAPP_NAME AZURE_RESOURCE_GROUP ACR_LOGIN_SERVER)
+          required_vars=(AZURE_WEBAPP_NAME ACR_LOGIN_SERVER)
           for name in "${required_vars[@]}"; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required config: ${name}. Set it in repository Variables (preferred) or Secrets."
@@ -68,7 +68,7 @@ jobs:
           fi
 
           echo "Deploy target type: ${DEPLOY_TARGET_TYPE}"
-          echo "Azure resource group: ${AZURE_RESOURCE_GROUP}"
+          echo "Azure resource group: ${AZURE_RESOURCE_GROUP:-<auto-discover>}"
           echo "Azure Web App name: ${AZURE_WEBAPP_NAME}"
           echo "ACR login server: ${ACR_LOGIN_SERVER}"
           echo "Azure location: ${AZURE_LOCATION}"
@@ -121,6 +121,20 @@ jobs:
         run: |
           set -euo pipefail
           az account show --output table
+
+      - name: Resolve resource group when not provided
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${AZURE_RESOURCE_GROUP:-}" ]]; then
+            RG="$(az webapp list --query "[?name=='${AZURE_WEBAPP_NAME}'].resourceGroup | [0]" -o tsv)"
+            if [[ -z "$RG" ]]; then
+              echo "::error::Could not resolve resource group for web app '${AZURE_WEBAPP_NAME}'. Set AZURE_RESOURCE_GROUP in repo Variables/Secrets."
+              exit 1
+            fi
+            echo "Resolved Azure resource group: $RG"
+            echo "AZURE_RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
+          fi
 
       - name: Validate Azure resources exist
         shell: bash
