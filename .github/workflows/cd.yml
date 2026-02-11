@@ -270,10 +270,12 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+          # 401/403 can be expected when app or network access restrictions are enabled.
+          ACCEPTED_CODES_REGEX='^(200|301|302|401|403)$'
           for attempt in {1..12}; do
             STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
             echo "Homepage attempt ${attempt}: ${STATUS:-no-response}"
-            if [ "$STATUS" = "200" ]; then
+            if [[ "${STATUS:-}" =~ $ACCEPTED_CODES_REGEX ]]; then
               exit 0
             fi
             sleep 10
@@ -286,10 +288,11 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/agents?q=test"
+          ACCEPTED_CODES_REGEX='^(200|301|302|401|403)$'
           for attempt in {1..12}; do
             STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
             echo "API attempt ${attempt}: ${STATUS:-no-response}"
-            if [ "$STATUS" = "200" ]; then
+            if [[ "${STATUS:-}" =~ $ACCEPTED_CODES_REGEX ]]; then
               exit 0
             fi
             sleep 10
