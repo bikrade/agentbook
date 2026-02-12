@@ -255,6 +255,46 @@ jobs:
             --name "$AZURE_WEBAPP_NAME" \
             --output none
 
+      - name: Ensure public access policy (avoid platform-level 403)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Keep public endpoint enabled for the production web app.
+          az webapp update \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --set publicNetworkAccess=Enabled \
+            --output none
+
+          # Disable App Service built-in auth to avoid unauthenticated 401/403 unless intentionally enabled.
+          az webapp auth update \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --enabled false \
+            --output none
+
+          # Ensure IP restrictions default to Allow for main and scm sites.
+          az webapp config access-restriction set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --use-same-restrictions-for-scm-site false \
+            --default-action Allow \
+            --scm-default-action Allow \
+            --output none
+
+          # Print non-sensitive policy snapshot for debugging.
+          az webapp auth show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "{enabled:enabled,unauthenticatedAction:unauthenticatedClientAction}" \
+            -o table
+          az webapp config access-restriction show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "{mainDefault:ipSecurityRestrictionsDefaultAction,scmDefault:scmIpSecurityRestrictionsDefaultAction}" \
+            -o table
+
   smoke-test:
     name: Post-Deploy Smoke Test
     runs-on: ubuntu-latest
@@ -270,8 +310,7 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
-          # 401/403 can be expected when app or network access restrictions are enabled.
-          ACCEPTED_CODES_REGEX='^(200|301|302|401|403)$'
+          ACCEPTED_CODES_REGEX='^(200|301|302)$'
           for attempt in {1..12}; do
             STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
             echo "Homepage attempt ${attempt}: ${STATUS:-no-response}"
@@ -288,7 +327,7 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/api/agents?q=test"
-          ACCEPTED_CODES_REGEX='^(200|301|302|401|403)$'
+          ACCEPTED_CODES_REGEX='^(200|301|302)$'
           for attempt in {1..12}; do
             STATUS=$(curl --connect-timeout 5 --max-time 20 -o /dev/null -s -w "%{http_code}" "$URL" || true)
             echo "API attempt ${attempt}: ${STATUS:-no-response}"
