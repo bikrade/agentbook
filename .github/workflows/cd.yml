@@ -34,6 +34,7 @@ jobs:
       SQLITE_MOUNT_PATH: /home/data
       SQLITE_DB_FILENAME: dev.db
       NEXTAUTH_SECRET: ${{ vars.NEXTAUTH_SECRET || secrets.NEXTAUTH_SECRET }}
+      AUTO_SCALE_ON_QUOTA_EXCEEDED: ${{ vars.AUTO_SCALE_ON_QUOTA_EXCEEDED || 'true' }}
       OIDC_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       OIDC_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       OIDC_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
@@ -168,6 +169,43 @@ jobs:
           az acr show --name "$ACR_NAME" --output none
           az group show --name "$AZURE_STORAGE_RESOURCE_GROUP" --output none
           az storage account show --resource-group "$AZURE_STORAGE_RESOURCE_GROUP" --name "$AZURE_STORAGE_ACCOUNT" --output none
+
+      - name: Recover from App Service quota exceeded (optional auto-scale)
+        shell: bash
+        run: |
+          set -euo pipefail
+          WEBAPP_STATE="$(az webapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "state" -o tsv)"
+          PLAN_ID="$(az webapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "serverFarmId" -o tsv)"
+          PLAN_NAME="${PLAN_ID##*/}"
+          PLAN_RG="$(echo "$PLAN_ID" | cut -d'/' -f5)"
+          PLAN_SKU="$(az appservice plan show \
+            --resource-group "$PLAN_RG" \
+            --name "$PLAN_NAME" \
+            --query "sku.name" -o tsv)"
+
+          echo "App Service state: ${WEBAPP_STATE}"
+          echo "App Service plan: ${PLAN_NAME} (${PLAN_SKU})"
+
+          if [[ "$WEBAPP_STATE" == "QuotaExceeded" && "$PLAN_SKU" == "F1" ]]; then
+            if [[ "${AUTO_SCALE_ON_QUOTA_EXCEEDED}" == "true" ]]; then
+              echo "Quota exceeded on Free tier detected. Scaling plan to B1 for reliable production uptime."
+              az appservice plan update \
+                --resource-group "$PLAN_RG" \
+                --name "$PLAN_NAME" \
+                --sku B1 \
+                --is-linux true \
+                --output none
+            else
+              echo "::error::App Service is QuotaExceeded on F1. Scale the App Service plan (e.g., B1) or set AUTO_SCALE_ON_QUOTA_EXCEEDED=true."
+              exit 1
+            fi
+          fi
 
       - name: Ensure persistent SQLite file share exists
         shell: bash
@@ -373,6 +411,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          WEBAPP_STATE="$(az webapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "state" -o tsv)"
           az webapp show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
@@ -383,6 +425,10 @@ jobs:
             --name "$AZURE_WEBAPP_NAME" \
             --query "{linuxFxVersion:linuxFxVersion,registry:DOCKER_REGISTRY_SERVER_URL}" \
             -o table
+          if [[ "$WEBAPP_STATE" == "QuotaExceeded" ]]; then
+            echo "::error::Web App state is QuotaExceeded. Scale the App Service plan above Free tier."
+            exit 1
+          fi
 
   smoke-test:
     name: Post-Deploy Smoke Test
