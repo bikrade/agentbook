@@ -274,6 +274,41 @@ jobs:
             --enabled false \
             --output none
 
+          # Remove any explicit main-site IP restriction rules that may still block all traffic.
+          while IFS= read -r RULE_NAME; do
+            [[ -z "$RULE_NAME" ]] && continue
+            echo "Removing main-site access restriction rule: $RULE_NAME"
+            az webapp config access-restriction remove \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --rule-name "$RULE_NAME" \
+              --output none || true
+          done < <(
+            az webapp config access-restriction show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --query "ipSecurityRestrictions[].name" \
+              -o tsv
+          )
+
+          # Remove explicit scm-site restriction rules as well.
+          while IFS= read -r RULE_NAME; do
+            [[ -z "$RULE_NAME" ]] && continue
+            echo "Removing scm-site access restriction rule: $RULE_NAME"
+            az webapp config access-restriction remove \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --rule-name "$RULE_NAME" \
+              --scm-site true \
+              --output none || true
+          done < <(
+            az webapp config access-restriction show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --query "scmIpSecurityRestrictions[].name" \
+              -o tsv
+          )
+
           # Ensure IP restrictions default to Allow for main and scm sites.
           az webapp config access-restriction set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
