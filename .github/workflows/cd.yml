@@ -178,12 +178,15 @@ jobs:
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
             --query "state" -o tsv)"
-          PLAN_ID="$(az webapp show \
+          PLAN_NAME="$(az webapp show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
-            --query "serverFarmId" -o tsv)"
-          PLAN_NAME="${PLAN_ID##*/}"
-          PLAN_RG="$(echo "$PLAN_ID" | cut -d'/' -f5)"
+            --query "serverFarmId | split(@, '/')[7]" -o tsv)"
+          PLAN_RG="$AZURE_RESOURCE_GROUP"
+          if [[ -z "$PLAN_NAME" ]]; then
+            echo "::error::Could not resolve App Service plan name from web app metadata."
+            exit 1
+          fi
           PLAN_SKU="$(az appservice plan show \
             --resource-group "$PLAN_RG" \
             --name "$PLAN_NAME" \
