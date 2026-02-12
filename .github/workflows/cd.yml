@@ -25,12 +25,15 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || secrets.AZURE_RESOURCE_GROUP }}
       ACR_NAME: ${{ vars.ACR_NAME || secrets.ACR_NAME }}
       ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ vars.ACR_USERNAME || secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ vars.ACR_PASSWORD || secrets.ACR_PASSWORD }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'unknown' }}
       AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT || secrets.AZURE_STORAGE_ACCOUNT }}
       AZURE_STORAGE_RESOURCE_GROUP: ${{ vars.AZURE_STORAGE_RESOURCE_GROUP || secrets.AZURE_STORAGE_RESOURCE_GROUP }}
       AZURE_FILE_SHARE: ${{ vars.AZURE_FILE_SHARE || 'agentbook-sqlite' }}
       SQLITE_MOUNT_PATH: /home/data
       SQLITE_DB_FILENAME: dev.db
+      NEXTAUTH_SECRET: ${{ vars.NEXTAUTH_SECRET || secrets.NEXTAUTH_SECRET }}
       OIDC_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       OIDC_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
       OIDC_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
@@ -61,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          required_vars=(AZURE_WEBAPP_NAME ACR_LOGIN_SERVER AZURE_STORAGE_ACCOUNT)
+          required_vars=(AZURE_WEBAPP_NAME ACR_LOGIN_SERVER ACR_USERNAME ACR_PASSWORD AZURE_STORAGE_ACCOUNT)
           for name in "${required_vars[@]}"; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required config: ${name}. Set it in repository Variables (preferred) or Secrets."
@@ -199,11 +202,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "::add-mask::$ACR_PASSWORD"
           IMAGE_REF="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${GITHUB_SHA}"
-          az webapp config set \
+
+          # Set image + private ACR credentials explicitly so image pull is deterministic.
+          az webapp config container set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
-            --linux-fx-version "DOCKER|${IMAGE_REF}" \
+            --container-image-name "$IMAGE_REF" \
+            --container-registry-url "https://${ACR_LOGIN_SERVER}" \
+            --container-registry-user "$ACR_USERNAME" \
+            --container-registry-password "$ACR_PASSWORD" \
             --output none
 
           # Explicit restart makes image swap timing deterministic before smoke checks.
@@ -241,13 +250,22 @@ jobs:
             --mount-path "$SQLITE_MOUNT_PATH" \
             --output none
 
+          SETTINGS=(
+            "DATABASE_URL=file:${SQLITE_MOUNT_PATH}/${SQLITE_DB_FILENAME}"
+            "WEBSITES_PORT=3000"
+            "PORT=3000"
+            "NEXTAUTH_URL=https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+          )
+          if [[ -n "${NEXTAUTH_SECRET:-}" ]]; then
+            SETTINGS+=("NEXTAUTH_SECRET=${NEXTAUTH_SECRET}")
+          else
+            echo "NEXTAUTH_SECRET not set in repo variables/secrets; continuing without it."
+          fi
+
           az webapp config appsettings set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
-            --settings \
-              DATABASE_URL="file:${SQLITE_MOUNT_PATH}/${SQLITE_DB_FILENAME}" \
-              WEBSITES_PORT=3000 \
-              PORT=3000 \
+            --settings "${SETTINGS[@]}" \
             --output none
 
           az webapp restart \
@@ -349,6 +367,21 @@ jobs:
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
             --query "{mainDefault:ipSecurityRestrictionsDefaultAction,scmDefault:scmIpSecurityRestrictionsDefaultAction}" \
+            -o table
+
+      - name: Startup diagnostics (non-sensitive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az webapp show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "{state:state,host:defaultHostName,httpsOnly:httpsOnly}" \
+            -o table
+          az webapp config container show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --query "{linuxFxVersion:linuxFxVersion,registry:DOCKER_REGISTRY_SERVER_URL}" \
             -o table
 
   smoke-test:
