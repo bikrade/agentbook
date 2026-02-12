@@ -275,15 +275,19 @@ jobs:
             --output none
 
           # Also disable AuthSettingsV2 explicitly (Easy Auth v2), which can still enforce 401/403.
-          az resource update \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --namespace Microsoft.Web \
-            --resource-type sites/config \
-            --name "${AZURE_WEBAPP_NAME}/authsettingsV2" \
-            --set \
-              properties.platform.enabled=false \
-              properties.globalValidation.requireAuthentication=false \
-              properties.globalValidation.unauthenticatedClientAction=AllowAnonymous \
+          AUTH_V2_URI="https://management.azure.com/subscriptions/${OIDC_SUBSCRIPTION_ID}/resourceGroups/${AZURE_RESOURCE_GROUP}/providers/Microsoft.Web/sites/${AZURE_WEBAPP_NAME}/config/authsettingsV2?api-version=2022-03-01"
+          az rest \
+            --method PATCH \
+            --uri "$AUTH_V2_URI" \
+            --body '{
+              "properties": {
+                "platform": { "enabled": false },
+                "globalValidation": {
+                  "requireAuthentication": false,
+                  "unauthenticatedClientAction": "AllowAnonymous"
+                }
+              }
+            }' \
             --output none || true
 
           # Remove any explicit main-site IP restriction rules that may still block all traffic.
@@ -336,11 +340,9 @@ jobs:
             --name "$AZURE_WEBAPP_NAME" \
             --query "{enabled:enabled,unauthenticatedAction:unauthenticatedClientAction}" \
             -o table
-          az resource show \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --namespace Microsoft.Web \
-            --resource-type sites/config \
-            --name "${AZURE_WEBAPP_NAME}/authsettingsV2" \
+          az rest \
+            --method GET \
+            --uri "$AUTH_V2_URI" \
             --query "{v2Enabled:properties.platform.enabled,requireAuth:properties.globalValidation.requireAuthentication,unauthenticatedAction:properties.globalValidation.unauthenticatedClientAction}" \
             -o table || true
           az webapp config access-restriction show \
