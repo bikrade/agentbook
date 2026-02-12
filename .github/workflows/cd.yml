@@ -274,6 +274,18 @@ jobs:
             --enabled false \
             --output none
 
+          # Also disable AuthSettingsV2 explicitly (Easy Auth v2), which can still enforce 401/403.
+          az resource update \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --namespace Microsoft.Web \
+            --resource-type sites/config \
+            --name "${AZURE_WEBAPP_NAME}/authsettingsV2" \
+            --set \
+              properties.platform.enabled=false \
+              properties.globalValidation.requireAuthentication=false \
+              properties.globalValidation.unauthenticatedClientAction=AllowAnonymous \
+            --output none || true
+
           # Remove any explicit main-site IP restriction rules that may still block all traffic.
           while IFS= read -r RULE_NAME; do
             [[ -z "$RULE_NAME" ]] && continue
@@ -324,6 +336,13 @@ jobs:
             --name "$AZURE_WEBAPP_NAME" \
             --query "{enabled:enabled,unauthenticatedAction:unauthenticatedClientAction}" \
             -o table
+          az resource show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --namespace Microsoft.Web \
+            --resource-type sites/config \
+            --name "${AZURE_WEBAPP_NAME}/authsettingsV2" \
+            --query "{v2Enabled:properties.platform.enabled,requireAuth:properties.globalValidation.requireAuthentication,unauthenticatedAction:properties.globalValidation.unauthenticatedClientAction}" \
+            -o table || true
           az webapp config access-restriction show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$AZURE_WEBAPP_NAME" \
